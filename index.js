@@ -1,13 +1,13 @@
-// const x = 1;
-// {
-//     const x = 2;
-//     console.log(x);
-    
-// }
-
-
-let x = 5;
-{
-    let x = 10;
+const func = async() => {
+    console.log("func");
+    return new Promise((resolve, reject) => {
+        console.log("Inside promise");
+        resolve()
+        console.log("After resolve");
+    })
 }
-console.log(x);
+
+func().then(data => {
+    console.log("Resolved promise.")
+});
+console.log("Hi");
