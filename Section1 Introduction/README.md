@@ -1,3 +1,8 @@
+References:
+https://nodejs.org/en/docs/guides
+
+READ THIS: https://nodejs.org/en/docs/guides/dont-block-the-event-loop (Nodejs is pretty scalable if you dont write bad code that blocks the event loop. Be sensible)
+
 # What is Node.js?
 Node.js is a javascript runtime environment. Which means it can execute javascript code anywhere else other than the browser. 
 
@@ -6,39 +11,189 @@ Node.js uses V8 Engine. V8 is basically the javascript engine built by Google wh
 compiles it into the machine code (This is also what the browser does). V8 is written in C++. 
 So, Node.js takes V8 codebase, and adds certain features like working with local files (Which is not possible with the original V8 engine code) and removes certain features like manipulating dom (Obviously dom will not be present outside the browser.)
 
-![How does Node work?](./images/image1.png)
+# Event loop
+Event loop is what allows Nodejs to perform ```non-blocking I/O (input/output) operations``` despite the fact that Nodejs runs javascript on a single thread, by offloading operations to system kernel whenever possible.
 
-So when our code gets executed by the javascript engine:
-1)	All the memory allocations happen on stack or heap (Primitive type allocations (const x = 5, const y = true etc) happen on stack and array, object allocations happen on heap)
+Some examples of IO Operations:
 
-2)	When a function is needed to be executed, it is inserted into the callstack. The function is then removed from the callstack after execution. (Note: Call stack is different from the memory stack. See explanation below)
+1. ```File I/O```: Reading / Writing to files, creating /removing directories, files etc
+2. ```Network I/O```: HTTP requests, DNS lookups, WebSockets, establishing tcp/udp connections etc
+3. ```Database I/O```: Database calls to MySQL, Mongo etc
 
-3)	While executing the js code, if the interpreter notices resolving/rejecting a promise, setTimeout, setInterval, etc then node handles these operations using c++ libraries like libuv which uses threads (In case of browser, these are called browser apis which are handled by the browser itself). After node completes processing, the callback functions are then added into a micro-task queue or macro-task queue (Only Promise.then or Promise.catch callbacks are added into the micro-task queue and these have higher priority than macro-task queue functions)
 
-4)	Event Loop: Event loop runs continuously to check if the call stack is empty or not. If the call stack is empty, then it processes all the job queue tasks, then it processes all the callback queue tasks (Here processing means that event loop would pop the function from the queue and put it on top of the call stack)
-Pseudo code of event loop:
+Since most modern kernels are multi-threaded, they can handle multiple operations executing in the background. When one of these operations completes, the kernel tells Node.js so that the appropriate callback may be added to the poll queue to eventually be executed
 
-```javascript
-runScript() //Synchronously execute the script as though it were a function body. Run until the Call Stack is empty.
-while (true) {
-  if(callStack.isEmpty()){
-    const jobQueue = EventLoop.getJobQueue();
-    if (jobQueue.hasNextTask()) {
-        jobQueue.processNextTask();
-    }
+# Event Loop Explained
 
-    const callbackQueue = EventLoop.getCallbackQueue();
-    while (callbackQueue.hasNextMicrotask()) {
-        callbackQueue.processNextMicrotask();
-    }
-    
-    // the rerender step DOES NOT happen in node. It happens in browser.
-    rerender();
-  }
-}
+When Node.js starts, it initializes the event loop, processes the provided input script which may make async API calls, schedule timers, or call process.nextTick(), then begins processing the event loop.
+
+```js
+eventLoop.init();
+processInputScript();
+eventLoop.process();
 ```
 
-**Important example**: If you dont understand, read the above "How does Node work?" again.
+The event loop processes the callbacks in the order below:
+    
+1.  ```Timers```
+2. ```Pending callbacks```
+3. ```Idle, prepare```
+4. ```Poll``` (For incoming connections, data etc)
+5. ```Check```
+6. ```Close Callbacks```
+
+Each phase has a FIFO queue of callbacks to execute. While each phase is special in its own way, generally, when the event loop enters a given phase, it will execute callbacks in that phase's queue until the queue has been exhausted or the maximum number of callbacks has executed. When the queue has been exhausted or the callback limit is reached, the event loop will move to the next phase, and so on.
+
+
+
+## Timers:
+This phase executes callbacks scheduled by setTimeout() and setInterval(). Note the event loop will process these timer callbacks until the queue is empty or it has processed maximum number of callbacks that it can process in the current phase.
+
+```js
+setTimeout(() => {
+  console.log('Callback 1');
+}, 1000);
+
+setTimeout(() => {
+  console.log('Callback 2');
+}, 500);
+
+// Output:
+// Callback 2
+// Callback 1
+```
+
+## Pending callbacks
+Executes I/O callbacks deferred to the next loop iteration. These are typically used for callbacks from asynchronous operations, like file I/O or network operations.
+
+Note the event loop will process these I/O callbacks until the queue is empty or it has processed maximum number of callbacks that it can process in the current phase.
+
+```js
+const fs = require('fs');
+
+fs.readFile('file.txt', (err, data) => {
+  console.log('Read file callback');
+});
+
+// Event loop executes the pending callback when the file read is complete.
+// Output: Read file callback
+```
+
+## Idle, Prepare
+These phases are used internally by Node.js and aren't typically relevant for application-level code.
+
+
+Here, input script means the script that we provide when we invoke node binary. 
+```
+node server.js // here server.js is the input script
+```
+
+## Polling
+In this phase, the event loop retrieves new I/O events; execute I/O related callbacks. Note the event loop will process these the I/O until there are no more requests or it has processed maximum number of requests that it can process in the current phase.
+
+```js
+const http = require('http');
+
+const server = http.createServer((req, res) => {
+  res.end('Hello, World!');
+});
+
+server.listen(3000, () => {
+  console.log('Server listening on port 3000');
+});
+
+// The event loop is in the poll phase, waiting for incoming HTTP requests.
+
+```
+
+The event loop checks for any incoming client requests like HTTP in our Node.js application. If there are any requests, the event loop tells the Node.js runtime to execute the corresponding callback, and the callback is added to the call stack.
+
+If there are any asynchronous operations like network operations (Only DNS lookups, http requests are handed off to the operating system underlying network stack) or setTimeout within these callbacks, those operations are handed off to libuv by the Node.js runtime.
+
+The event loop then checks if there are any completed operations from libuv (file operations, dns lookups etc), operating system network (Remember for http requests) etc . If there are any completed operations, then the event loop would add the corresponding callbacks to the appropriate queue (timer queue for timer callbacks, I/O queue for I/O callbacks, etc.).
+
+If there are no more client requests or no more completed operations from libuv or it has processed maximum number of requests that it can process in the current phase, then it would exit from this phase.
+
+## Check phase
+This is where the setImmediate callbacks would get executed.
+
+## Close phase
+This is where the callbacks related to ```close``` event gets executed. For eg., ```socket.on('close', callbackFn)```
+(Read about event emitters)
+
+
+# NOTE
+Before starting any phase or after any phase, the event loop checks if there are any callbacks to be executed which were resolved / rejected by the ```promises```. These callbacks are added to a queue called ```microtask queue``` which has ```higher priority``` than any phase in the event loop
+
+Eg., code
+```js
+const func = async() => {
+    return new Promise((resolve, reject) => {
+        resolve();
+    })
+}
+
+func().then(() => {
+    console.log("Promise resolved");
+})
+
+setTimeout(() => {
+    console.log("Timeout callback")
+}, 0);
+```
+
+In the above code, when the promise is resolved ```the v8 engine or the interpreter``` itself adds the callback to the ```microtask queue```. And the callback gets processed before the phases of the event loop start.
+
+So the output is
+```
+Promise resolved
+Timeout callback
+```
+
+## process.nextTick()
+The callbacks present in process.nextTick scheduled to run immediately after the current phase of the event loop
+
+Example:
+```js
+let bar;
+// this has an asynchronous signature, but calls callback synchronously
+function someAsyncApiCall(callback) {
+  callback();
+}
+// the callback is called before `someAsyncApiCall` completes.
+someAsyncApiCall(() => {
+  // since someAsyncApiCall hasn't completed, bar hasn't been assigned any value
+  console.log('bar', bar); // undefined
+});
+bar = 1;
+```
+
+But if we use process.nextTick()
+
+```js
+let bar;
+function someAsyncApiCall(callback) {
+  process.nextTick(callback);
+}
+someAsyncApiCall(() => {
+  console.log('bar', bar); // 1
+});
+bar = 1;
+```
+
+## How node handles events like req.on('data', callbackFn)
+
+In Node.js, when an HTTP request is received, the request data is often streamed to the server in chunks. The ‘data’ event is emitted each time a chunk of data arrives, and the ‘end’ event is emitted when all data has been received.
+
+During the Poll phase of the event loop, Node.js checks for new I/O events like these ‘data’ events. When a ‘data’ event occurs, its callback is executed immediately. This does not block the event loop because only one callback is executed at a time, and Node.js can continue to process other events between these callbacks. (**For a request, Node does not wait for the entire request until the request emits a end event**)
+
+If a single request sends a large amount of data, it could potentially take a long time to process all ‘data’ events for that request. However, because these events are processed one at a time in the event loop, Node.js can interleave the processing of ‘data’ events from multiple requests. This allows Node.js to handle many concurrent requests efficiently.
+
+When all data for a request has been received and all ‘data’ events have been processed, an ‘end’ event is emitted. The callback for the ‘end’ event is also executed immediately when the event occurs.
+
+
+## Important example
+If you dont understand, read the above "How does Node work?" again.
 ```js
 const func = async() => {
     console.log("func");
@@ -87,7 +242,11 @@ The call stack is a data structure in JavaScript that keeps track of the executi
 It is responsible for managing the flow of program execution, tracking function calls, and maintaining the order in which functions are executed.
 As functions are called, their call frames are pushed onto the call stack, and when a function returns, its call frame is popped off the stack.
 The call stack is used for the execution of synchronous code and for maintaining the context of function calls.
-Memory Allocation Stack:
+
+When an error occurs, we get a stack trace as shown below
+![](./images/image2.png)
+
+The anonymous function is the main function.
 
 **Memory Stack**:
 

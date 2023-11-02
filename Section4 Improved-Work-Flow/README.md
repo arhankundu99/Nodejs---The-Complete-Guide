@@ -143,3 +143,41 @@ Want to dive super-deep into the latest debugging capabilities Visual Studio Cod
 This article will be very helpful: https://code.visualstudio.com/docs/nodejs/nodejs-debugging
 
 https://nodejs.org/en/docs/guides/debugging-getting-started
+
+# How Node.js debugging works internally
+
+**PLEASE REFER THIS**: https://nodejs.org/en/docs/guides/debugging-getting-started
+
+When started with the --inspect switch, a Node.js process listens for a debugging client. By default, it will listen at host and port 127.0.0.1:9229. Each process is also assigned a unique UUID.
+
+Inspector clients must know and specify host address, port, and UUID to connect. A full URL will look something like ```ws://127.0.0.1:9229/0f2c936f-b1cd-4ac9-aab3-f63b0f33d55e```.
+
+```node --inspect app.js```
+
+## Behind the scenes of debugging node.js applications with vscode
+When you debug a Node.js application using Visual Studio Code (VS Code) and the --inspect flag, VS Code communicates with the debugging client that is established by Node.js through the ```V8 Inspector Protocol```. This protocol allows VS Code to interact with the Node.js runtime and perform debugging operations, such as inspecting variables, setting breakpoints, and changing variable values.
+
+When you change the value of a variable during debugging in VS Code, the interaction typically occurs as follows:
+
+1. ```VS Code```: You make changes to a variable's value within VS Code's debugging interface.
+
+2. ```VS Code sends a request```: VS Code sends a command to the V8 Inspector Protocol running on the debugging port of the Node.js process. This command could be a Set Variable Value command or something similar.
+
+3. ```Node.js debugging client```: The Node.js runtime, which is being debugged, receives the command from VS Code.
+
+4. ```Node.js runtime```: The Node.js runtime, which is being debugged, processes the command and modifies the variable's value accordingly.
+
+5. ```Updates are reflected```: The updated variable value is then reflected in VS Code's debugging interface, allowing you to see the changes you made.
+
+These interactions are typically performed using the ```V8 Inspector Protocol```.
+
+## Security Implications
+See, while debugging, we are able to modify the values of our variables in the node process. So if we expose the debugging url in public, there would be security implications because now multiple clients can connect to it and run malicious code.
+
+```DO NOT expose the debugging url publicly.```
+
+## For connecting to the debugging server using chromium browser
+
+Option 1: Open chrome://inspect in a Chromium-based browser or edge://inspect in Edge. Click the Configure button and ensure your target host and port are listed.
+
+Option 2: Copy the devtoolsFrontendUrl from the output of /json/list (see above) or the --inspect hint text and paste into Chrome.
