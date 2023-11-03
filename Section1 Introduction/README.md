@@ -1,7 +1,8 @@
 References:
 https://nodejs.org/en/docs/guides
 
-READ THIS: https://nodejs.org/en/docs/guides/dont-block-the-event-loop (Nodejs is pretty scalable if you dont write bad code that blocks the event loop. Be sensible)
+PLEASE READ THIS: https://nodejs.org/en/docs/guides/dont-block-the-event-loop (Nodejs is pretty scalable if you dont write bad code that blocks the event loop. Be sensible)
+
 
 # What is Node.js?
 Node.js is a javascript runtime environment. Which means it can execute javascript code anywhere else other than the browser. 
@@ -10,6 +11,15 @@ Node.js is a javascript runtime environment. Which means it can execute javascri
 Node.js uses V8 Engine. V8 is basically the javascript engine built by Google which runs javascript code in the browser. The engine takes javascript code, 
 compiles it into the machine code (This is also what the browser does). V8 is written in C++. 
 So, Node.js takes V8 codebase, and adds certain features like working with local files (Which is not possible with the original V8 engine code) and removes certain features like manipulating dom (Obviously dom will not be present outside the browser.)
+
+# Components in Node.js
+
+![](./images/image3.webp)
+
+**V8**: Javascript Engine.
+
+**libuv**: C++ library for file operations, dns lookups, network requests (Actually our operating system that does the real network requests. Libuv is used to issue the request and then it just waits on the operating system to emit a signal that some response has come back to the request.)
+
 
 # Event loop
 Event loop is what allows Nodejs to perform ```non-blocking I/O (input/output) operations``` despite the fact that Nodejs runs javascript on a single thread, by offloading operations to system kernel whenever possible.
@@ -31,6 +41,12 @@ When Node.js starts, it initializes the event loop, processes the provided input
 eventLoop.init();
 processInputScript();
 eventLoop.process();
+```
+
+
+Here, input script means the script that we provide when we invoke node binary. 
+```
+node server.js // here server.js is the input script
 ```
 
 The event loop processes the callbacks in the order below:
@@ -83,11 +99,6 @@ fs.readFile('file.txt', (err, data) => {
 These phases are used internally by Node.js and aren't typically relevant for application-level code.
 
 
-Here, input script means the script that we provide when we invoke node binary. 
-```
-node server.js // here server.js is the input script
-```
-
 ## Polling
 In this phase, the event loop retrieves new I/O events; execute I/O related callbacks. Note the event loop will process these the I/O until there are no more requests or it has processed maximum number of requests that it can process in the current phase.
 
@@ -108,9 +119,9 @@ server.listen(3000, () => {
 
 The event loop checks for any incoming client requests like HTTP in our Node.js application. If there are any requests, the event loop tells the Node.js runtime to execute the corresponding callback, and the callback is added to the call stack.
 
-If there are any asynchronous operations like network operations (Only DNS lookups, http requests are handed off to the operating system underlying network stack) or setTimeout within these callbacks, those operations are handed off to libuv by the Node.js runtime.
+If there are any asynchronous operations like network operations or setTimeout etc within these callbacks, those operations are handed off to libuv by the Node.js runtime.
 
-The event loop then checks if there are any completed operations from libuv (file operations, dns lookups etc), operating system network (Remember for http requests) etc . If there are any completed operations, then the event loop would add the corresponding callbacks to the appropriate queue (timer queue for timer callbacks, I/O queue for I/O callbacks, etc.).
+The event loop then checks if there are any completed operations from libuv (file operations, dns lookups, network requests). If there are any completed operations, then the event loop would add the corresponding callbacks to the appropriate queue (timer queue for timer callbacks, I/O queue for I/O callbacks, etc.).
 
 If there are no more client requests or no more completed operations from libuv or it has processed maximum number of requests that it can process in the current phase, then it would exit from this phase.
 

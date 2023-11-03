@@ -103,6 +103,7 @@ In node, get access to response headers using ```res.getHeaders()``` method
 
 It typically has the following structure:
 ```
+statusCode: 200
 Connection: keep-alive
 Content-Type: text/plain
 Date: Wed, 01 Nov 2023 15:00:17 GMT

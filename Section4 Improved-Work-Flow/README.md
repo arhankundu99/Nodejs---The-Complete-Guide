@@ -94,6 +94,12 @@ In this case, the ```package.json``` file looks like this:
 }
 ```
 
+```
+The caret (^) symbol: When used before a version number like ^3.0.1, it means that updates are allowed to any future version that does not modify the left-most non-zero digit in the major, minor, patch tuple1. In other words, it will update you to all future minor/patch versions, without incrementing the major version1. For example, ^1.2.3 will use releases from 1.2.3 to <2.0.0.
+
+The tilde (~) symbol: When used before a version number like ~3.0.1, it means that updates are allowed to any future version that does not modify the minor version1. In other words, it will update you to all future patch versions, without incrementing the minor version1. For example, ~1.2.3 will use releases from 1.2.3 to <1.3.0.
+```
+
 For global: ```npm install nodemon -g``` (This command will not install nodemon in our project but it will install the package globally so that we can use the nodemon package anywhere).
 
 The command ```npm install``` installs all the dependencies listed in the package.json file and puts all the packages in the node_modules folder.
