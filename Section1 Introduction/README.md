@@ -19,6 +19,13 @@ So, Node.js takes V8 codebase, and adds certain features like working with local
 **V8**: Javascript Engine.
 
 **libuv**: C++ library for file operations, dns lookups, network requests (Actually our operating system that does the real network requests. Libuv is used to issue the request and then it just waits on the operating system to emit a signal that some response has come back to the request.)
+Libuv uses the thread pool (Thread pool is the collectionof available threads) for the below 4 operations only:
+1. File operations
+2. DNS Lookups
+3. Crypto operations
+4. Zlib operations
+
+Network I/O is handled by OS. When there is a Network IO operation, the operation is handed over to libuv which simply acts as an interface to os calls as network I/O is handled by OS. 
 
 
 # Event loop
@@ -63,7 +70,7 @@ Each phase has a FIFO queue of callbacks to execute. While each phase is special
 
 
 ## Timers:
-This phase executes callbacks scheduled by setTimeout() and setInterval(). Note the event loop will process these timer callbacks until the queue is empty or it has processed maximum number of callbacks that it can process in the current phase.
+In this phase, the event loop checks whether there are any expired timers scheduled by setTimeout() and setInterval() and if there are any, then it executes the callbacks. Note the event loop will process these timer callbacks until there are no more callbacks or it has processed maximum number of callbacks that it can process in the current phase.
 
 ```js
 setTimeout(() => {
@@ -119,9 +126,9 @@ server.listen(3000, () => {
 
 The event loop checks for any incoming client requests like HTTP in our Node.js application. If there are any requests, the event loop tells the Node.js runtime to execute the corresponding callback, and the callback is added to the call stack.
 
-If there are any asynchronous operations like network operations or setTimeout etc within these callbacks, those operations are handed off to libuv by the Node.js runtime.
+If there are any asynchronous operations like network operations or setTimeout etc within these callbacks, those operations are handed off to libuv by the Node.js runtime. (Note libuv uses thread pool only for the 4 operations defined above), other than that for eg., for network io, libuv acts as an interface to os calls, The network io is handled by os. 
 
-The event loop then checks if there are any completed operations from libuv (file operations, dns lookups, network requests). If there are any completed operations, then the event loop would add the corresponding callbacks to the appropriate queue (timer queue for timer callbacks, I/O queue for I/O callbacks, etc.).
+The event loop then checks if there are any completed operations from libuv (file operations, dns lookups, network requests). If there are any completed operations, then the event loop would add the corresponding callbacks to the appropriate queue (I/O queue for I/O callbacks, etc.).
 
 If there are no more client requests or no more completed operations from libuv or it has processed maximum number of requests that it can process in the current phase, then it would exit from this phase.
 
